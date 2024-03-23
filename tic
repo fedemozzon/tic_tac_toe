@@ -1,0 +1,178 @@
+import numpy as np
+import random
+
+class QLearningAgent:
+    def __init__(self, alpha=1.2, gamma=1.2, epsilon=0.5):
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Exploration rate
+        self.q_table = {}  # Q-table
+
+    def get_q_value(self, state, action):
+        if state not in self.q_table:
+            self.q_table[state] = np.zeros(9)
+        return self.q_table[state][action]
+
+    def update_q_value(self, state, action, reward, next_state):
+        current_q = self.get_q_value(state, action)
+        max_next_q = np.max(self.q_table[next_state]) if next_state in self.q_table else 0
+        new_q = current_q + self.alpha * (reward + self.gamma * max_next_q - current_q)
+        self.q_table[state][action] = new_q
+
+    def choose_action(self, state, valid_actions):
+        if len(valid_actions) == 0:
+            return None
+        if np.random.rand() < self.epsilon:
+            return random.choice(valid_actions)
+        else:
+            if state in self.q_table:
+                return np.argmax(self.q_table[state][valid_actions])
+            else:
+                return random.choice(valid_actions)
+
+def state_to_string(state):
+    return ''.join(state)
+
+def print_board(board):
+    for row in board:
+        print("|".join(row))
+        print("-" * 5)
+
+def check_winner(board, player):
+    # Check rows
+    for row in board:
+        if all(cell == player for cell in row):
+            return True
+
+    # Check columns
+    for col in range(3):
+        if all(board[row][col] == player for row in range(3)):
+            return True
+
+    # Check diagonals
+    if all(board[i][i] == player for i in range(3)) or all(board[i][2 - i] == player for i in range(3)):
+        return True
+
+    return False
+
+def empty_cells(board):
+    cells = []
+    for i in range(3):
+        for j in range(3):
+            if board[i][j] == " ":
+                cells.append((i, j))
+    return cells
+
+def train_agents():
+    agent1 = QLearningAgent()
+    agent2 = QLearningAgent()
+
+    print("Training RL agents to play Tic Tac Toe...")
+
+    for _ in range(100000):  # Number of games for training
+        board = [[" " for _ in range(3)] for _ in range(3)]
+        state = state_to_string([cell for row in board for cell in row])
+        done = False
+
+        while not done:
+            # Agent 1's turn
+            valid_actions = [i for i in range(9) if board[i // 3][i % 3] == " "]
+            action = agent1.choose_action(state, valid_actions)
+            if action is None:
+                break
+            row, col = action // 3, action % 3
+            board[row][col] = "X"
+            next_state = state_to_string([cell for row in board for cell in row])
+            if check_winner(board, "X"):
+                agent1.update_q_value(state, action, 1, next_state)
+                agent2.update_q_value(state, action, -1, next_state)
+                done = True
+            elif len(empty_cells(board)) == 0:
+                agent1.update_q_value(state, action, 0, next_state)
+                agent2.update_q_value(state, action, 0, next_state)
+                done = True
+
+            # Agent 2's turn
+            valid_actions = [i for i in range(9) if board[i // 3][i % 3] == " "]
+            action = agent2.choose_action(state, valid_actions)
+            if action is None:
+                break
+            row, col = action // 3, action % 3
+            board[row][col] = "O"
+            next_state = state_to_string([cell for row in board for cell in row])
+            if check_winner(board, "O"):
+                agent1.update_q_value(state, action, -1, next_state)
+                agent2.update_q_value(state, action, 1, next_state)
+                done = True
+            elif len(empty_cells(board)) == 0:
+                agent1.update_q_value(state, action, 0, next_state)
+                agent2.update_q_value(state, action, 0, next_state)
+                done = True
+
+            state = next_state
+
+    print("Training completed!")
+    return agent1, agent2
+
+def main():
+    while True:
+        agent1, agent2 = train_agents()
+
+        # Play a game between the trained agent and the user
+        board = [[" " for _ in range(3)] for _ in range(3)]
+        state = state_to_string([cell for row in board for cell in row])
+
+        print("Playing against the trained agent...")
+        print_board(board)
+
+        while True:
+            # User's turn
+            while True:
+                try:
+                    row = int(input("Enter row (0, 1, or 2): "))
+                    col = int(input("Enter column (0, 1, or 2): "))
+
+                    if board[row][col] == " ":
+                        board[row][col] = "X"
+                        break
+                    else:
+                        print("That position is already taken. Try again.")
+                except (ValueError, IndexError):
+                    print("Invalid input. Please enter a number between 0 and 2.")
+
+            print_board(board)
+
+            if check_winner(board, "X"):
+                print("You win!")
+                break
+            elif len(empty_cells(board)) == 0:
+                print("It's a draw!")
+                break
+
+            # Agent's turn
+            valid_actions = [i for i in range(9) if board[i // 3][i % 3] == " "]
+            action = agent1.choose_action(state, valid_actions)
+            if action is None:
+                print("No valid action for the agent. It's a draw!")
+                break
+            row, col = action // 3, action % 3
+            board[row][col] = "O"
+            next_state = state_to_string([cell for row in board for cell in row])
+            print("Agent's move:")
+            print_board(board)
+            if check_winner(board, "O"):
+                print("Agent wins!")
+                break
+            elif len(empty_cells(board)) == 0:
+                print("It's a draw!")
+                break
+
+            state = next_state
+
+        play_again = input("Do you want to play again? (yes/no): ")
+        if play_again.lower() != "yes":
+            print("Thanks for playing!")
+            break
+
+if __name__ == "__main__":
+    main()
